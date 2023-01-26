@@ -18,6 +18,7 @@ Why not?
 $ make
 help                           Display this message
 build                          Build
+run                            Run main binary
 test                           Run tests
 format                         Format code
 check                          Run code checks

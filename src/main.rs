@@ -29,7 +29,7 @@ type Value = f64;
 struct Chunk {
     code: Vec<u8>,
     constants: Vec<Value>,
-    lines: Vec<u32>,
+    lines: Vec<usize>,
 }
 
 impl Chunk {
@@ -41,9 +41,14 @@ impl Chunk {
         }
     }
 
-    pub fn write(&mut self, byte: u8, line: u32) {
-        self.code.push(byte);
-        self.lines.push(line);
+    pub fn write(&mut self, bytes: Vec<u8>, line: u32) {
+        // Store line information using run-length encoding (RLE): <num_instructions><line>
+        self.lines.push(bytes.len());
+        self.lines.push(line as usize);
+
+        for byte in bytes {
+            self.code.push(byte);
+        }
     }
 
     pub fn add_constant(&mut self, value: Value) -> u8 {
@@ -63,13 +68,29 @@ impl Chunk {
         f
     }
 
+    fn get_line(&self, offset: usize) -> u32 {
+        let mut current_offset = 0;
+
+        for c in self.lines.chunks(2) {
+            let (num_instructions, line) = (c[0], c[1]);
+
+            current_offset += num_instructions;
+
+            if offset < current_offset {
+                return line as u32;
+            }
+        }
+
+        return 0;
+    }
+
     fn disassemble_instruction(&self, f: &mut String, offset: usize) -> usize {
         f.push_str(&format!("{offset:04} "));
 
-        if offset > 0 && self.lines[offset] == self.lines[offset - 1] {
+        if offset > 0 && self.get_line(offset) == self.get_line(offset - 1) {
             f.push_str("   | ");
         } else {
-            f.push_str(&format!("{line:4} ", line = self.lines[offset]));
+            f.push_str(&format!("{line:4} ", line = self.get_line(offset)));
         }
 
         let instruction = self.code[offset];
@@ -105,9 +126,31 @@ fn simple_instruction(f: &mut String, name: &str, offset: usize) -> usize {
 
 fn main() {
     let mut chunk = Chunk::new();
+
     let constant_index = chunk.add_constant(1.2);
-    chunk.write(OpCode::Constant.into(), 123);
-    chunk.write(constant_index, 123);
-    chunk.write(OpCode::Return.into(), 123);
+    chunk.write(
+        vec![
+            OpCode::Constant.into(),
+            constant_index,
+        ],
+        123,
+    );
+
+    chunk.write(vec![OpCode::Return.into()], 124);
+
+    let constant_index1 = chunk.add_constant(5.4);
+    let constant_index2 = chunk.add_constant(0.2);
+    chunk.write(
+        vec![
+            OpCode::Constant.into(),
+            constant_index1,
+            OpCode::Constant.into(),
+            constant_index2,
+        ],
+        125,
+    );
+
+    chunk.write(vec![OpCode::Return.into()], 126);
+
     println!("{}", chunk.disassemble("test chunk"));
 }
