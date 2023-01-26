@@ -29,6 +29,7 @@ type Value = f64;
 struct Chunk {
     code: Vec<u8>,
     constants: Vec<Value>,
+    lines: Vec<u32>,
 }
 
 impl Chunk {
@@ -36,11 +37,13 @@ impl Chunk {
         Self {
             code: Vec::new(),
             constants: Vec::new(),
+            lines: Vec::new(),
         }
     }
 
-    pub fn write(&mut self, byte: u8) {
+    pub fn write(&mut self, byte: u8, line: u32) {
         self.code.push(byte);
+        self.lines.push(line);
     }
 
     pub fn add_constant(&mut self, value: Value) -> u8 {
@@ -62,6 +65,12 @@ impl Chunk {
 
     fn disassemble_instruction(&self, f: &mut String, offset: usize) -> usize {
         f.push_str(&format!("{offset:04} "));
+
+        if offset > 0 && self.lines[offset] == self.lines[offset - 1] {
+            f.push_str("   | ");
+        } else {
+            f.push_str(&format!("{line:4} ", line = self.lines[offset]));
+        }
 
         let instruction = self.code[offset];
 
@@ -97,8 +106,8 @@ fn simple_instruction(f: &mut String, name: &str, offset: usize) -> usize {
 fn main() {
     let mut chunk = Chunk::new();
     let constant_index = chunk.add_constant(1.2);
-    chunk.write(OpCode::Constant.into());
-    chunk.write(constant_index);
-    chunk.write(OpCode::Return.into());
+    chunk.write(OpCode::Constant.into(), 123);
+    chunk.write(constant_index, 123);
+    chunk.write(OpCode::Return.into(), 123);
     println!("{}", chunk.disassemble("test chunk"));
 }
